@@ -1,0 +1,337 @@
+---
+title: "Modelstroke"
+author: "Utkarshna Sinha"
+date: '2021-04-21'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, message=FALSE}
+library(readr)
+library(tidyverse)
+library(caret)
+library(ROSE)
+library(modelr)
+library(glmnet)
+library(kknn)
+setwd("~/Desktop/DS5110/Project/")
+all_data <- read.csv("./train_strokes.csv", header = TRUE)
+mean_bmi = mean(all_data$bmi,na.rm = T)
+
+all_data = all_data %>%
+              mutate(bmi = ifelse(is.na(bmi),mean_bmi,bmi))
+stroke_data2 <- all_data %>% na.omit() %>% 
+  mutate(age_group=case_when(age >= 91 & age <= 109 ~ '90+',
+                             age >= 80 & age <= 90 ~ '80 - 89',
+                            age >= 70 & age <= 79 ~ '70 - 79',
+                            age >= 60 & age <= 69 ~ '60 - 69',
+                            age >= 50 & age <= 59 ~ '50 - 59',
+                            age >= 40  & age <= 49 ~ '40 - 49', 
+                            age >= 30  & age <= 39 ~ '30 - 39', 
+                            age >= 19  & age <= 29 ~ '19 - 29',
+                            age >= 0  & age <= 18 ~ '0 - 18',))
+```
+
+```{r}
+stroke_data2$age_group <- as.factor(as.character(stroke_data2$age_group))
+stroke_data2$stroke <- as.factor(as.integer(stroke_data2$stroke))
+stroke_data2$age <- as.factor(as.numeric(stroke_data2$age))
+stroke_data2$gender <- as.factor(as.character(stroke_data2$gender))
+stroke_data2$ever_married <- as.factor(as.character(stroke_data2$ever_married))
+stroke_data2$work_type <- as.factor(as.character(stroke_data2$work_type))
+stroke_data2$Residence_type <- as.factor(as.character(stroke_data2$Residence_type))
+stroke_data2$smoking_status <- as.factor(as.character(stroke_data2$smoking_status))
+stroke_data2$hyptertension <- as.factor(as.integer(stroke_data2$hypertension))
+stroke_data2$heart_disease <- as.factor(as.integer(stroke_data2$heart_disease))
+```
+
+```{r warning=FALSE}
+# oversample and undersample with caret 
+# sensitivity & specificity be more balanced at least 0.5 - 1
+# manually sample to generate indices (replace=TRUE) with sample, undersample with replace=FALSE
+
+index <- createDataPartition(stroke_data2$stroke, p = 0.8, list = FALSE)
+stroke_t <- stroke_data2[as.integer(index),]
+stroke_test <- stroke_data2[-as.integer(index),]
+
+#table(stroke_data2$stroke[index])
+```
+
+ROSE generates synthetic balanced samples and thus allows to strenghten the subsequent estimation of any binary classifier.
+
+```{r}
+stroke_train <- ROSE(stroke ~ ., data = stroke_t, seed=22)$data
+t3<-table(stroke_train$stroke)
+```
+
+Create ROSE graph
+```{r}
+t3 <- as.data.frame(t3) %>% 
+  mutate(Stroke=recode(Var1, "1" ="Had Stroke", "0" ="No Stroke" )) 
+ggplot(t3, aes(x=Stroke, y=Freq, fill=Stroke)) +
+  geom_bar(stat="identity") +
+  labs(x = "Stroke", y = "Frequency",
+       title="Class distribution for Training Set after ROSE sampling", fill="Stroke") +
+  theme_minimal()
+```
+
+```{r}
+set.seed(99)
+stroke_fit1 <- glm(stroke ~ age, 
+                   data=stroke_train, 
+                   family=binomial(link="logit"))
+
+s_prob2 <- predict(stroke_fit2, newdata=stroke_test, type="response")
+
+#hist(s_prob2)
+s_pred2 <- ifelse(s_prob2 > 0.5, 1, 0)
+mean(s_pred2 == stroke_test$stroke, na.rm = TRUE)
+table(s_pred2, stroke_test$stroke)
+```
+
+```{r warning=FALSE}
+set.seed(78)
+s_fit1 <- train(stroke ~ age, data=stroke_train,
+              method="glm", family=binomial(link="logit"),
+              preProcess="medianImpute",
+              trControl=trainControl(method="none"),
+              na.action=na.pass)
+
+confusionMatrix(predict(s_fit1, stroke_test, na.action=na.pass),
+                 stroke_test$stroke)
+```
+
+```{r}
+summary(s_fit1)
+```
+
+```{r warning=FALSE}
+set.seed(78)
+s_fit2 <- train(stroke ~ age + hyptertension , data=stroke_train,
+              method="glm", family=binomial(link="logit"),
+              preProcess="medianImpute",
+              trControl=trainControl(method="none"),
+              na.action=na.pass)
+
+confusionMatrix(predict(s_fit2, stroke_test, na.action=na.pass),
+                 stroke_test$stroke)
+```
+
+```{r warning=FALSE}
+set.seed(78)
+s_fit3 <- train(stroke ~ age + hyptertension + heart_disease , data=stroke_train,
+              method="glm", family=binomial(link="logit"),
+              preProcess="medianImpute",
+              trControl=trainControl(method="none"),
+              na.action=na.pass)
+
+confusionMatrix(predict(s_fit3, stroke_test, na.action=na.pass),
+                 stroke_test$stroke)
+```
+
+```{r}
+summary(s_fit3)
+```
+
+
+```{r warning=FALSE}
+set.seed(48)
+s_fit4 <- train(stroke ~ age + hyptertension + heart_disease + avg_glucose_level, data=stroke_train,
+              method="glm", family=binomial(link="logit"),
+              preProcess="medianImpute",
+              trControl=trainControl(method="none"),
+              na.action=na.pass)
+
+confusionMatrix(predict(s_fit4, stroke_test, na.action=na.pass),
+                 stroke_test$stroke)
+```
+
+ Does not run
+```{r warning=FALSE}
+set.seed(78)
+s_fit5 <- train(stroke ~ ., data=stroke_train,
+              method="glm", family=binomial(link="logit"),
+              preProcess="medianImpute",
+              trControl=trainControl(method="none"),
+              na.action=na.pass)
+
+s_fit5
+```
+
+## Plotting the ROC
+
+Changing the cutoff probability for class assignment can affect the sensitivity and specificity. It can be useful to calculate and plot the tradeoff between sensitivity and specificity for different cutoffs. This is traditionally visualized as an ROC curve, which plots the *true positive rate* (sensitivity) against the *false positive rate* (1 - specificity): First we write functions for calculating sensitivity and specificity for a given probability cutoff.
+
+```{r}
+sens <- function(c, p, ref, positive = levels(ref)[2])
+{
+  mean((p > c)[ref == positive], na.rm=TRUE)
+}
+sens(0.5, s_prob, stroke_test$stroke)
+sens(0.5, s_prob2, stroke_test$stroke)
+sens(0.5, s_prob3, stroke_test$stroke)
+
+spec <- function(c, p, ref, negative = levels(ref)[1])
+{
+  mean((p < c)[ref == negative], na.rm=TRUE)
+}
+spec(0.5, s_prob, stroke_test$stroke)
+spec(0.5, s_prob2, stroke_test$stroke)
+spec(0.5, s_prob3, stroke_test$stroke)
+```
+
+```{r}
+roc <- tibble(p=seq(from=0, to=1, by=0.01)) %>%
+  mutate(sensitivity = map_dbl(p, sens, p=s_prob3, ref=stroke_test$stroke),
+         specificity = map_dbl(p, spec, p=s_prob3, ref=stroke_test$stroke),
+         TPR=sensitivity,
+         FPR=1 - specificity)
+roc
+
+ggplot(roc, aes(x=FPR, y=TPR)) + 
+  geom_path(color="red", size=1) +
+  geom_vline(xintercept=0, color="green", linetype="dotdash") +
+  geom_hline(yintercept=1, color="green", linetype="dotdash") +
+  geom_abline(intercept=0, slope=1, color="blue", linetype="dotted") +
+  labs(x="False positive rate (1 - specificity)",
+       y="True positive rate (sensitivity)") +
+  theme_minimal()
+```
+
+
+
+
+
+```{r}
+set.seed(888)
+knn_fit <- train.kknn(stroke ~ age + hyptertension + heart_disease + avg_glucose_level, 
+                 data=stroke_train, na.action = na.pass)
+              
+summary(knn_fit)
+```
+```{r}
+knn_pred <- predict(knn_fit, newdata=stroke_test)
+
+mean(knn_pred == stroke_test$stroke, na.rm = TRUE)
+table(knn_pred, stroke_test$stroke)
+knn_fit
+```
+
+
+```{r}
+confusionMatrix(predict(knn_fit, stroke_test, na.action=na.pass), stroke_test$stroke)
+```
+
+
+```{r}
+set.seed(88)
+knn_fit2 <- train.kknn(stroke ~ age + hyptertension + heart_disease, 
+                 data=stroke_train, na.action = na.pass)
+
+confusionMatrix(predict(knn_fit2, stroke_test, na.action=na.pass), stroke_test$stroke)
+```
+
+```{r}
+set.seed(48)
+knn_fit3 <- train.kknn(stroke ~ age + hyptertension, 
+                 data=stroke_train, na.action = na.pass)
+
+confusionMatrix(predict(knn_fit3, stroke_test, na.action=na.pass), stroke_test$stroke)
+```
+
+```{r}
+set.seed(48)
+knn_fit4 <- train(stroke ~ age , method="knn",
+                 data=stroke_train, na.action = na.pass)
+
+confusionMatrix(predict(knn_fit4, stroke_test, na.action=na.pass), stroke_test$stroke)
+```
+
+```{r}
+set.seed(48)
+knn_fit5 <- train.kknn(stroke ~ age + avg_glucose_level, 
+                 data=stroke_train, na.action = na.pass)
+
+confusionMatrix(predict(knn_fit5, stroke_test, na.action=na.pass), stroke_test$stroke)
+```
+
+```{r}
+confusionMatrix(predict(knn_fit2, stroke_test, na.action=na.pass), stroke_test$stroke)
+```
+
+
+GLM without caret
+Do the glm fit for logit
+```{r}
+set.seed(8)
+stroke_fit <- glm(stroke ~ age, data=stroke_train, family=binomial(link="logit"))
+s_prob <- predict(stroke_fit, newdata=stroke_test, type="response")
+hist(s_prob)
+```
+
+Now we can calculate the accuracy:
+
+```{r}
+set.seed(8)
+s_pred <- ifelse(s_prob > 0.5, 1, 0)
+
+mean(s_pred == stroke_test$stroke, na.rm = TRUE)
+```
+
+And a confusion matrix:
+
+```{r}
+table(s_pred, stroke_test$stroke)
+confusionMatrix()
+```
+
+```{r}
+set.seed(99)
+stroke_fit2 <- glm(stroke ~ age+hypertension, 
+                   data=stroke_train, family=binomial(link="logit"))
+s_prob2 <- predict(stroke_fit2, newdata=stroke_test, type="response")
+
+#hist(s_prob2)
+s_pred2 <- ifelse(s_prob2 > 0.5, 1, 0)
+mean(s_pred2 == stroke_test$stroke, na.rm = TRUE)
+table(s_pred2, stroke_test$stroke)
+```
+
+```{r}
+set.seed(88)
+stroke_fit3 <- glm(stroke ~ age+hypertension+heart_disease, 
+                   data=stroke_train, family=binomial(link="logit"))
+s_prob3 <- predict(stroke_fit3, newdata=stroke_test, type="response")
+
+#hist(s_prob3)
+s_pred3 <- ifelse(s_prob3 > 0.5, 1, 0)
+mean(s_pred3 == stroke_test$stroke, na.rm = TRUE)
+table(s_pred3, stroke_test$stroke)
+confusionMatrix(predict(stroke_fit3, stroke_test, na.action=na.pass),
+                stroke_test$stroke)
+```
+```{r}
+set.seed(83)
+stroke_fit4 <- glm(stroke ~ age+hypertension+heart_disease +avg_glucose_level, 
+                   data=stroke_train, family=binomial(link="logit"))
+s_prob4 <- predict(stroke_fit4, newdata=stroke_test, type="response")
+
+#hist(s_prob4)
+s_pred4 <- ifelse(s_prob4 > 0.5, 1, 0)
+mean(s_pred4 == stroke_test$stroke, na.rm = TRUE)
+table(s_pred4, stroke_test$stroke)
+```
+```{r}
+set.seed(23)
+stroke_fit5 <- glm(stroke ~ age+hypertension+heart_disease +bmi, 
+                   data=stroke_train, family=binomial(link="logit"))
+s_prob5 <- predict(stroke_fit5, newdata=stroke_test, type="response")
+
+#hist(s_prob4)
+s_pred5 <- ifelse(s_prob5 > 0.5, 1, 0)
+mean(s_pred5 == stroke_test$stroke, na.rm = TRUE)
+table(s_pred5, stroke_test$stroke)
+```
