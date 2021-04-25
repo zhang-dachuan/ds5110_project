@@ -1,0 +1,216 @@
+---
+title: "EDA 2"
+author: "Joseph Punnapuzha"
+date: "4/25/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(maps)
+library(gapminder)
+library(tidyverse)
+library(RSQLite)
+library(modelr)
+```
+
+## Setup
+
+```{r}
+# read files stroke
+stroke_path <- file.path("/Users/testq/Documents",
+                        "Northeastern/DS 5110/project prelim",
+                        "train_strokes.csv")
+stroke_all <- read_csv(stroke_path)
+```
+
+
+```{r cars}
+# take out other, replace NA of smoking to unknown, remove other NA fields
+mean_bmi = mean(stroke_all$bmi,na.rm = T)
+stroke_all = stroke_all %>%
+      mutate(bmi = ifelse(is.na(bmi),mean_bmi,bmi))
+stroke_all <- stroke_all[!(stroke_all$gender=="Other"),] 
+stroke_all$smoking_status[is.na(stroke_all$smoking_status)] <- 'unknown'
+stroke_all <- na.omit(stroke_all)
+
+# change from number to character
+stroke_df <- stroke_all
+stroke_df$stroke <- as.character(stroke_df$stroke)
+stroke_df$stroke[stroke_df$stroke == "1"] <- "Had Stroke"
+stroke_df$stroke[stroke_df$stroke == "0"] <- "No Stroke"
+
+stroke_df$hypertension <- as.character(stroke_df$hypertension)
+stroke_df$heart_disease <- as.character(stroke_df$heart_disease)
+
+stroke_df <- stroke_df %>% mutate(age_group=case_when(age >= 91 & age <= 109 ~ '90+',
+                             age >= 80 & age <= 90 ~ '80 - 89',
+                            age >= 70 & age <= 79 ~ '70 - 79',
+                            age >= 60 & age <= 69 ~ '60 - 69',
+                            age >= 50 & age <= 59 ~ '50 - 59',
+                            age >= 40  & age <= 49 ~ '40 - 49', 
+                            age >= 30  & age <= 39 ~ '30 - 39', 
+                            age >= 19  & age <= 29 ~ '19 - 29',
+                            age >= 0  & age <= 18 ~ '0 - 18',))
+
+stroke_only <- filter(stroke_df, stroke_df$stroke=="Had Stroke")
+```
+
+## Age analysis
+
+```{r age vs had storke}
+ggplot(data = stroke_only, mapping = aes(x=age, fill=gender)) +
+  geom_histogram(position='stack') +
+  labs(x ="Age",
+       y = "Count of stroke patients",
+       title = "As age increases, the occurrence of stroke patients tends to increase") +
+  theme_minimal()
+```
+
+```{r age vs stroke}
+ggplot(data = stroke_df, mapping = aes(x=stroke, y=age, fill=gender)) +
+  geom_boxplot() +
+  labs(y="Age",
+       x="Stroke Status",
+       title="Median age of those who had stroke is higher than those without stroke") +
+  theme_minimal()
+```
+
+## Gender
+
+```{r gender vs had storke}
+ggplot(data = stroke_only, mapping = aes(x=gender, fill=gender)) +
+  geom_bar(position='stack') +
+  labs(title = "Gender of those who had stroke")
+
+```
+
+```{r gender vs storke}
+ggplot(data = stroke_df, mapping = aes(x=gender, fill=stroke)) +
+  geom_bar(position='stack') +
+  scale_y_continuous(trans='log10') +
+  labs(title = "Overall gender breakdown by stroke status (log10 y-axis)",
+       fill = "stroke status",
+       y = "log 10 count")
+```
+
+## Hypertension
+
+```{r hypertension vs storke}
+ggplot(data = stroke_df, mapping = aes(x=stroke, fill=hypertension)) +
+  geom_bar(position='dodge') +
+  geom_text(stat='count', aes(label=..count..), vjust=-.2) +
+  labs(title = "Hyerptension breakdown")
+```
+
+```{r hypertension vs had storke}
+ggplot(data = stroke_only, mapping = aes(x=hypertension, fill= hypertension)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-.2) +
+  labs(title = "hypertension of those who have had stroke")
+```
+
+## Heart Disease
+
+```{r heart vs storke}
+ggplot(data = stroke_df, mapping = aes(x=stroke, fill=heart_disease)) +
+  geom_bar(position='dodge') +
+  geom_text(stat='count', aes(label=..count..), vjust=-.2) +
+  labs(title = "heart disease breakdown")
+```
+
+```{r heart vs had storke}
+ggplot(data = stroke_only, mapping = aes(x=heart_disease, fill=heart_disease)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-.2) +
+  labs(title = "heart disease of those who have had stroke")
+```
+
+## Marital Status
+
+```{r married vs had storke}
+ggplot(data = stroke_only, mapping = aes(x=ever_married, fill=ever_married)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-.2) +
+  labs(title = "married status of those with stroke")
+```
+
+```{r married vs storke}
+ggplot(data = stroke_df, mapping = aes(x=ever_married, fill=ever_married)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-.2) +
+  labs(title = "married breakdwon")
+```
+
+```{r age vs married}
+ggplot(data = stroke_df, mapping = aes(x=age, fill=ever_married)) +
+  geom_histogram() +
+  labs(title = "age vs married")
+```
+
+## Residence
+
+```{r residence vs storke}
+ggplot(data = stroke_df, mapping = aes(x=Residence_type, fill=stroke)) +
+  geom_bar() +
+  labs(y="Count",
+       x="Residence Type",
+       title = "Residence breakdown")
+```
+## Work
+
+```{r work vs storke}
+ggplot(data = stroke_df, mapping = aes(x=work_type, fill=stroke)) +
+  geom_bar() +
+  labs(title = "work type breakdown")
+```
+
+## Glucose Analysis
+
+```{r glucose vs storke}
+ggplot(data = stroke_only, mapping = aes(x=age, y = avg_glucose_level)) +
+  geom_point() +
+  labs(title = "age vs glucose of those who had stroke")
+```
+
+```{r glucose vs storke}
+ggplot(data = stroke_only, mapping = aes(x=avg_glucose_level, fill=stroke)) +
+  geom_histogram(bins=80) +
+  labs(title = "glucose breakdown")
+```
+
+```{r}
+ggplot(stroke_df  %>% filter(stroke_all$age >= 30), aes(x=stroke, y=avg_glucose_level, fill=stroke)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  facet_wrap(~age_group) +
+  labs(y="Average Glucose Level",
+       x="Stroke Status",
+       fill= "Stroke Status",
+       title="Average glucose levels for 'had stroke' vs 'no stroke' is similar for each age group") +
+  theme_minimal()
+```
+
+## BMI Analysis
+
+```{r bmi vs storke}
+ggplot(stroke_df %>% filter(stroke_df$age >= 30), aes(x=stroke, y=bmi, fill=stroke)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  facet_wrap(~age_group) +
+  labs(y="BMI", x="Stroke Status", title="BMI for 'had stroke' vs 'no stroke' is similar for each age group", fill="Stroke Status") +
+  theme_minimal()
+```
+
+## Smoking Analysis
+
+```{r smoking vs storke}
+ggplot(data = stroke_df, mapping = aes(x=stroke, fill=smoking_status)) +
+  geom_bar(position="dodge") +
+  #geom_text(stat='count', aes(label=..count..), vjust=-.2) +
+  labs(title = "smoking status breakdown")
+```
+

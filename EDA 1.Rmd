@@ -1,0 +1,318 @@
+---
+title: "EDA 1"
+author: "Utkarshna Sinha"
+date: '4/25/2021'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup
+
+```{r}
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(purrr)
+stroke_path <- file.path("/Users/testq/Documents",
+                        "Northeastern/DS 5110/project prelim",
+                        "train_strokes.csv")
+data <- read_csv(stroke_path)
+```
+
+```{r}
+mean_bmi = mean(data$bmi,na.rm = T)
+data = data %>%
+        mutate(bmi = ifelse(is.na(bmi),mean_bmi,bmi))
+data$smoking_status[is.na(data$smoking_status)] <- 'unknown'
+data2 <- data[!(data$gender=="Other"),] 
+
+stroke_data <- data2 %>% na.omit() %>%
+  mutate(Stroke=recode(stroke, "1"="Had Stroke", "0"="No Stroke")) %>%
+  mutate(HT=recode(hypertension, "1"="Positive", "0"="Negative")) %>% 
+  mutate(HD=recode(heart_disease, "1"="Positive", "0"="Negative")) %>% 
+  mutate(age_group=case_when(age >= 91 & age <= 109 ~ '90+',
+                             age >= 80 & age <= 90 ~ '80 - 89',
+                            age >= 70 & age <= 79 ~ '70 - 79',
+                            age >= 60 & age <= 69 ~ '60 - 69',
+                            age >= 50 & age <= 59 ~ '50 - 59',
+                            age >= 40  & age <= 49 ~ '40 - 49', 
+                            age >= 30  & age <= 39 ~ '30 - 39', 
+                            age >= 19  & age <= 29 ~ '19 - 29',
+                            age >= 0  & age <= 18 ~ '0 - 18',))
+```
+Removed 'other' from gender as there were only 6 data points ie not a representative sample
+imputed 'unknown' to smoking status
+imputed missing BMI with mean bmi
+
+## AGE ANALYSIS
+```{r}
+ggplot(stroke_data, aes(x=Stroke, y=age, fill=Stroke)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette="Set1", direction=-1) +
+  labs(y="Age",
+       title="Age associated with stroke") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data , aes(x=age, fill=gender)) +
+  geom_histogram(bins = 10, position='dodge') +
+  facet_wrap(~Stroke) +
+  labs(y="Count",
+       title="Age associated with stroke") +
+  theme_minimal()
+```
+Majority of people in the dataset have not had a stroke. 
+
+\newpage
+## Glucose Analysis
+```{r}
+ggplot(stroke_data, aes(x=Stroke, y=avg_glucose_level, fill=Stroke)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  scale_fill_brewer(palette="Set1", direction=-1) +
+  labs(y="Average Glucose Level",
+       title="Higher Glucose may be associated with stroke") +
+  theme_minimal()
+```
+
+
+## BMI Analysis
+```{r}
+ggplot(stroke_data, aes(x=Stroke, y=bmi, fill=Stroke)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  scale_fill_brewer(palette="Set1", direction=-1) +
+  labs(y="BMI",
+       title="Higher BMI associated with stroke?") +
+  theme_minimal()
+```
+
+Seems to be slightly higher mean BMI but lower variation in those who had a stroke vs those who did not.
+
+```{r}
+ggplot(stroke_data, aes(x=Stroke, y=bmi, fill=age_group)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  scale_fill_brewer(palette="Set1", direction=-1) +
+  labs(y="BMI", title="Lower BMI associated with stroke?") +
+  theme_minimal()
+```
+BMI decreases with age regardless of stroke?
+
+## Hypertension Analysis
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age < 50 & stroke_data$stroke == 0), aes(x=HT, fill=HT)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  #geom_text(stat='count', aes(label=stat(count)/sum(stat(count))*100), vjust=-.2) +
+  labs(x="Hypertension", y="Count", title="Hypertension Proportions in People < 50 who did not have stroke", fill="Hypertension") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age < 50 & stroke_data$stroke == 1), aes(x=HT, fill=HT)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  #geom_text(stat='count', aes(label=stat(count)/sum(stat(count))*100), vjust=-.2) +
+  labs(x="Hypertension", y="Count", title="Hypertension Proportions in People < 50 who had a stroke", fill="Hypertension") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age >= 50 & stroke_data$stroke == 0), aes(x=HT, fill=HT)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  #geom_text(stat='count', aes(label=stat(count)/sum(stat(count))*100), vjust=-.2) +
+  labs(x="Hypertension", y="Count Percent", title="% Hypertension in People, 50 and older, with No Stroke", fill="Hypertension") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age >= 50 & stroke_data$stroke == 1), aes(x=HT, fill=HT)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  #geom_text(stat='count', aes(label=stat(count)/sum(stat(count))*100), vjust=-.2) +
+  labs(x="Hypertension", y="Count Percent", title="% Hypertension in People, 50 and older, with Stroke", fill="Hypertension") +
+  theme_minimal()
+```
+
+Higher percentage of people who have hypertension have had a stroke (both age groups).
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age >= 50 & stroke_data$stroke == 1), aes(x=HT, fill=age_group)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  labs(x="Hypertension", y="Count", title="Hypertension in People > 50 with Stroke", fill="Age Group") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age >= 50 & stroke_data$stroke == 1), aes(x=HT, fill=gender)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  labs(x="Hypertension", y="Count", title="Hypertension in People > 50 with Stroke", fill="Gender") +
+  theme_minimal()
+```
+
+# Heart Disease Analysis
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age < 50 & stroke_data$stroke == 0), aes(x=HD, fill=HD)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  #geom_text(stat='count', aes(label=stat(count)/sum(stat(count))*100), vjust=-.2) +
+  labs(x="Heart Disease", y="Count", title="Heart Disease Proportions in People < 50 who did not have stroke", fill="Heart Disease") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age < 50 & stroke_data$stroke == 1), aes(x=HD, fill=HD)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  #geom_text(stat='count', aes(label=stat(count)/sum(stat(count))*100), vjust=-.2) +
+  labs(x="Heart Disease", y="Percent", title="Heart Disease proportions in People, 50 and older, with Stroke", fill="Heart Disease") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age >= 50 & stroke_data$stroke == 0), aes(x=HD, fill=HD)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  labs(x="Heart Disease", y="Count Percent", title="Heart Disease proportions in People, 50 and older, with No Stroke", fill="Heart Disease") +
+  #geom_text(stat='count', aes(label=stat(count)/sum(stat(count))*100), vjust=-.2) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age >= 50 & stroke_data$stroke == 1), aes(x=HD, fill=HD)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  labs(x="Heart Disease", y="Count Percent", title="Heart Disease proportions in People, 50 and older, with Stroke", fill="Heart Disease") +
+  #geom_text(stat='count', aes(label=stat(count)/sum(stat(count))*100), vjust=-.2) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$age >= 50 & stroke_data$stroke == 1), aes(x=HD, fill=gender)) +
+  geom_bar(position = "stack") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) +
+  facet_grid(~age_group) +
+  labs(x="Heart Disease", y="Count", title="Heart Disease Proportions in People >= 50 who had a stroke", fill="Heart Disease") +
+  theme_minimal()
+```
+For people over 70, females without heart disease are highest proportion of those that have a stroke. For women over 70, heart disease may not be correlated with stroke.
+
+
+# Residence Type
+```{r}
+ggplot(stroke_data, aes(x=Stroke, fill=Residence_type)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x="Stroke", y="Count Percent", title="Residence not associated with stroke", fill="Residence") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$stroke == 1), aes(x=Stroke, fill=Residence_type)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(y="Count Percent", title="Residence not associated with stroke in those who had stroke", fill="Residence") +
+  theme_minimal()
+```
+
+No difference in residence type in our dataset who had a stroke. 
+
+# Work Type
+
+```{r}
+ggplot(stroke_data, aes(x=Stroke, fill=work_type)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x="Stroke", y="Count Percent", title="Work type not associated with stroke", fill="Work type") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$stroke == 1), aes(x=Stroke, fill=work_type)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x="Stroke", y="Count", title="Work type not associated with stroke", fill="Work type") +
+  theme_minimal()
+```
+
+# Married Analysis
+```{r}
+ggplot(stroke_data, aes(x=Stroke, fill=ever_married)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x="Stroke", y="Count", title="Married Status not associated with stroke", fill="Married") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$stroke == 0), aes(x=Stroke, fill=ever_married)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x="Stroke", y="Count Percent", title="Married Status in people who did not have stroke", fill="Married") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$stroke == 1), aes(x=Stroke, fill=ever_married)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x="Stroke", y="Count Percent", title="Married Status in people who had stroke", fill="Married") +
+  theme_minimal()
+```
+
+# Smoking Analysis
+```{r}
+ggplot(stroke_data, aes(x=Stroke, fill=smoking_status)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent)
+  labs(x="Stroke", y="Count", title="Smoking status associated with stroke", fill="Smoking Status") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$stroke == 0), aes(x=Stroke, fill=smoking_status)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x="Stroke", y="Count", title="Smoking status associated without stroke", fill="Smoking Status") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(stroke_data %>% filter(stroke_data$stroke == 1), aes(x=Stroke, fill=smoking_status)) +
+  geom_bar(position = "dodge") +
+  aes(y=stat(count)/sum(stat(count))) + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x="Stroke", y="Count", title="Smoking status associated with stroke", fill="Smoking Status") +
+  theme_minimal()
+```
+
