@@ -20,8 +20,8 @@ The identification and analysis of factors linked with stroke can lead to enhanc
 for patients who are determined to be at a higher risk. The exploration of this dataset, and a strong
 predictive model may lead to better healthcare outcomes for patients.
 With regards to our second goal of developing a stroke prediction model, our hypotheses are as follows:
-Null Hypothesis (H0): There is no significant relationship between stroke status and any factors.
-Alternative Hypothesis (Ha): There exists a relationship between stroke status and a combination of
+Null Hypothesis (H<sub>0</sub>): There is no significant relationship between stroke status and any factors.
+Alternative Hypothesis (H<sub>a</sub>): There exists a relationship between stroke status and a combination of
 physiological and lifestyle factors.
 
 ### Dataset Description
